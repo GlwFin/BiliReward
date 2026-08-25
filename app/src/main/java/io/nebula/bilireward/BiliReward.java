@@ -88,8 +88,25 @@ public final class BiliReward implements IXposedHookLoadPackage {
             XposedBridge.hookMethod(m, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam p) {
+                    // Mark all flags so that any gate check passes.
                     setAllBooleans(p.thisObject, target);
                     log("onCreate done");
+                    // Actively try to grant the reward, THEN close the ad.
+                    try {
+                        // Call the close/grant path first (it will be hooked to
+                        // pass boolean flags), so the reward is actually issued.
+                        grantAndClose(p.thisObject, target, cl);
+                    } catch (Throwable t) {
+                        log("grant: " + t);
+                    }
+                    try {
+                        if (p.thisObject instanceof android.app.Activity) {
+                            ((android.app.Activity) p.thisObject).finish();
+                            log("ad activity auto-closed");
+                        }
+                    } catch (Throwable t) {
+                        log("auto-close: " + t);
+                    }
                 }
             });
             break;
@@ -177,6 +194,60 @@ public final class BiliReward implements IXposedHookLoadPackage {
                 f.setAccessible(true);
                 f.setBoolean(obj, true);
             } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Helper: actively trigger the reward-grant path, then close.
+    // Finds a method whose parameters include RewardAdCloseFrom
+    // (the "close and grant reward" entry, e.g. Jb/g8/S6) and invokes
+    // it with a default CloseFrom value and boolean args set to true.
+    // ---------------------------------------------------------------
+    private static void grantAndClose(Object self, Class<?> target, ClassLoader cl) {
+        Class<?> closeFromType = null;
+        try {
+            closeFromType = XposedHelpers.findClass(CLOSE_FROM_TYPE, cl);
+        } catch (Throwable ignored) {
+        }
+        if (closeFromType == null) return;
+
+        for (Method m : target.getDeclaredMethods()) {
+            boolean has = false;
+            for (Class<?> pt : m.getParameterTypes()) {
+                if (pt == closeFromType) { has = true; break; }
+            }
+            if (!has) continue;
+            try {
+                Object closeFromVal = null;
+                try {
+                    Object[] consts = closeFromType.getEnumConstants();
+                    if (consts != null && consts.length > 0) {
+                        closeFromVal = consts[0];
+                    }
+                } catch (Throwable ignored) {
+                }
+                Class<?>[] pts = m.getParameterTypes();
+                Object[] args = new Object[pts.length];
+                for (int i = 0; i < pts.length; i++) {
+                    if (pts[i] == closeFromType) {
+                        args[i] = closeFromVal;
+                    } else if (pts[i] == boolean.class) {
+                        args[i] = Boolean.TRUE;
+                    } else if (pts[i] == int.class) {
+                        args[i] = 0;
+                    } else if (pts[i] == long.class) {
+                        args[i] = 0L;
+                    } else {
+                        args[i] = null;
+                    }
+                }
+                m.setAccessible(true);
+                m.invoke(self, args);
+                log("grant path invoked: " + m.getName());
+                return;
+            } catch (Throwable t) {
+                log("grant invoke " + m.getName() + ": " + t);
             }
         }
     }

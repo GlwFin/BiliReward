@@ -18,6 +18,8 @@ The module scans for an Activity that holds a `RewardAdListener` field, then:
 2. Returns `true` for every no-arg boolean method (the gate checks)
 3. Forces all boolean arguments to `true` in methods taking `RewardAdCloseFrom`
 4. Sets all boolean fields to `true` on `finish()`
+5. Actively invokes the close/grant method and immediately finishes the ad
+   activity, so the ad never becomes visible and the reward is still granted.
 
 No hardcoded class/method/field names — relies entirely on type signatures,
 so it survives obfuscation changes between releases.
