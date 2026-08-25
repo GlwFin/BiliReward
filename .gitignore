@@ -1,0 +1,28 @@
+# Build artifacts
+classes/
+classes.dex
+*.apk
+build/
+
+# Android
+.gradle/
+local.properties
+*.iml
+
+# Java
+*.class
+*.jar
+!stub/**/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / logs
+*.log
+*.txt.bak
